@@ -1,14 +1,4 @@
-{--
- - (c) 2019 DOX, LTDA. http://www.dox.cl
- - License:  Esta  aplicación esta bajo una licencia Attribution-NoDerivs 3.0 Unported  La  licencia 
- - permite  redistribucion,  comercial  y  no comercial, con la condición que  el  producto  no  sea 
- - alterado,  sea  manejado  como un todo, sin separar sus partes, y los creditos por  autoria  sean 
- - preservados a nombre de DOX. Para ver una copia de esta licencia, visite
- - http://creativecommons.org/licenses/by-nd/3.0/legalcode.
- -}
- 
-module Csf.CustomElasticSearch
-    exposing ( .. )
+module CustomElasticSearch exposing ( .. )
 
 {-| Easily generate typesafe elasticsearch queries
 
@@ -63,6 +53,126 @@ import Time exposing ( Posix )
 type alias AttrName =
     String
 
+type alias BoolQuery =
+    { must : List Query
+    , mustNot : List Query
+    , filter : List Query
+    , should : List Query
+    , boost : Maybe Float
+    , minimumShouldMatch : Maybe Int
+    , queryName : Maybe String
+    }
+
+type alias  RegexpQuery =
+    { field : String
+    , regexValue : String
+    }
+
+type alias SearchRequest =
+    { query : Query
+    , sort : List Sort
+    }
+
+
+type alias TermQuery =
+    { name : AttrName
+    , value : Value
+    , boost : Maybe Float
+    , queryName : Maybe String
+    }
+
+type alias TermsQuery =
+    { name : String
+    , value : JE.Value
+    , boost : Maybe Float
+    , queryName : Maybe String
+    }
+    
+type alias MatchQuery = 
+    { name : AttrName
+    , value : Value
+    }
+    
+type alias WildCardQuery = 
+    { name : AttrName
+    , value : Value
+    }
+
+type alias RangeQuery =
+    { name : AttrName
+    , from : LowerBound
+    , to : UpperBound
+    , boost : Maybe Float
+    , queryName : Maybe String
+    , relation : Maybe Relation
+
+    -- , timezone : TimeZone
+    }
+
+type TypeQuery
+    = TypeQuery String
+
+{-| A query
+-}
+type Query
+    = Term TermQuery
+    | Terms TermsQuery
+    | Match MatchQuery
+    | WildCard WildCardQuery
+    | Range RangeQuery
+    | Type TypeQuery
+    | Bool BoolQuery
+    | MatchAll
+    | Exists String
+    | Regexp String String
+    
+type BoolClause
+    = Must (List Query)
+    | Filter (List Query)
+    | Should (List Query) (Maybe Int)
+    | MustNot (List Query)
+    
+type SortOrder
+    = Asc
+    | Desc
+
+type SortMode
+    = SortModeMin
+    | SortModeMax
+    | SortModeSum
+    | SortModeAvg
+    | SortModeMedian
+
+type Sort
+    = SortByField String SortOrder
+    | SortByArrayField String SortOrder SortMode
+{-| A search request
+-}
+
+
+type Relation
+    = Within
+    | Contains
+    | Intersects
+    | Disjoint
+
+type LowerBound
+    = NoLowerBound
+    | Gte Value
+    | Gt Value
+
+
+type UpperBound
+    = NoUpperBound
+    | Lte Value
+    | Lt Value
+
+type Value
+    = IntValue Int
+    | StringValue String
+    | FloatValue Float
+    | DateValue Posix
+    | BooleanValue Bool
 
 encodeObject : List ( String, Maybe JE.Value ) -> JE.Value
 encodeObject list =
@@ -88,12 +198,7 @@ encodeSubObject path attrs =
 
 {-| An opaque type for wrapping values
 -}
-type Value
-    = IntValue Int
-    | StringValue String
-    | FloatValue Float
-    | DateValue Posix
-    | BooleanValue Bool
+
 
 
 {-| Build a integer value
@@ -146,29 +251,6 @@ encodeValue value =
         BooleanValue v ->
             JE.bool v
 
-type alias TermQuery =
-    { name : AttrName
-    , value : Value
-    , boost : Maybe Float
-    , queryName : Maybe String
-    }
-
-type alias TermsQuery =
-    { name : String
-    , value : JE.Value
-    , boost : Maybe Float
-    , queryName : Maybe String
-    }
-    
-type alias MatchQuery = 
-    { name : AttrName
-    , value : Value
-    }
-    
-type alias WildCardQuery = 
-    { name : AttrName
-    , value : Value
-    }
 
 -- type MatchAll = MatchAll
 
@@ -229,16 +311,7 @@ encodeWildCardQuery q =
                 ]
           )
         ]
-        
-
-
-
-type Relation
-    = Within
-    | Contains
-    | Intersects
-    | Disjoint
-
+   
 
 relationToString : Relation -> String
 relationToString rel =
@@ -262,21 +335,7 @@ encodeRelation rel =
     , Maybe.map (relationToString >> JE.string) rel
     )
 
-
-type LowerBound
-    = NoLowerBound
-    | Gte Value
-    | Gt Value
-
-
-type UpperBound
-    = NoUpperBound
-    | Lte Value
-    | Lt Value
-
-
 {-| Greater Than Nothing
-
 Use for a range with no lower bound
 
 -}
@@ -392,18 +451,6 @@ encodeMinimumShoudMatch value =
     ( "minimum_should_match", Maybe.map JE.int value )
 
 
-type alias RangeQuery =
-    { name : AttrName
-    , from : LowerBound
-    , to : UpperBound
-    , boost : Maybe Float
-    , queryName : Maybe String
-    , relation : Maybe Relation
-
-    -- , timezone : TimeZone
-    }
-
-
 encodeRangeQuery : RangeQuery -> JE.Value
 encodeRangeQuery q =
     encodeSubObject [ "range", q.name ]
@@ -412,22 +459,6 @@ encodeRangeQuery q =
         , encodeBoost q.boost
         , encodeRelation q.relation
         ]
-
-
-type alias BoolQuery =
-    { must : List Query
-    , mustNot : List Query
-    , filter : List Query
-    , should : List Query
-    , boost : Maybe Float
-    , minimumShouldMatch : Maybe Int
-    , queryName : Maybe String
-    }
-
-type alias  RegexpQuery =
-    { regexValue : String
-    , field : String
-    }
 
 emptyBoolQuery : BoolQuery
 emptyBoolQuery =
@@ -439,7 +470,6 @@ emptyBoolQuery =
     , minimumShouldMatch = Nothing
     , queryName = Nothing
     }
-
 
 encodeRegexpQuery : RegexpQuery -> JE.Value
 encodeRegexpQuery q =
@@ -462,33 +492,12 @@ encodeBoolQuery q =
         , encodeQueryName q.queryName
         ]
 
-
-type TypeQuery
-    = TypeQuery String
-
-
 encodeTypeQuery : TypeQuery -> JE.Value
 encodeTypeQuery q =
     case q of
         TypeQuery tname ->
             encodeSubObject [ "type" ]
                 [ ( "value", Just <| JE.string tname ) ]
-
-
-{-| A query
--}
-type Query
-    = Term TermQuery
-    | Terms TermsQuery
-    | Match MatchQuery
-    | WildCard WildCardQuery
-    | Range RangeQuery
-    | Type TypeQuery
-    | Bool BoolQuery
-    | MatchAll
-    | Exists String
-    | Regexp String String
-
 
 {-| Encode a query to a Json.Encode.Value
 -}
@@ -602,11 +611,6 @@ maybeCombine a b =
             b
 
 
-type BoolClause
-    = Must (List Query)
-    | Filter (List Query)
-    | Should (List Query) (Maybe Int)
-    | MustNot (List Query)
 
 
 {-| A `bool` query
@@ -705,9 +709,6 @@ boost b q_ =
         Regexp field regexExp -> Regexp field regexExp
 
 
-type SortOrder
-    = Asc
-    | Desc
 
 
 sortOrderToString : SortOrder -> String
@@ -740,12 +741,6 @@ desc =
     Desc
 
 
-type SortMode
-    = SortModeMin
-    | SortModeMax
-    | SortModeSum
-    | SortModeAvg
-    | SortModeMedian
 
 
 sortModeToString : SortMode -> String
@@ -798,9 +793,6 @@ sortModeMedian =
     SortModeMedian
 
 
-type Sort
-    = SortByField String SortOrder
-    | SortByArrayField String SortOrder SortMode
 
 
 encodeSort : Sort -> JE.Value
@@ -834,12 +826,7 @@ sortByArray =
     SortByArrayField
 
 
-{-| A search request
--}
-type alias SearchRequest =
-    { query : Query
-    , sort : List Sort
-    }
+
 
 
 {-| search Request
